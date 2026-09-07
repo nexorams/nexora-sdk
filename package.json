@@ -1,0 +1,59 @@
+{
+  "name": "@nexorams/sdk",
+  "version": "1.0.0",
+  "description": "Official JavaScript and TypeScript SDK for the Nexora Developer Platform",
+  "main": "./dist/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "homepage": "https://nexoragms.com/developers",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nexorams/nexora-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nexorams/nexora-sdk/issues"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build:cjs": "tsc -p tsconfig.json",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build": "node build.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test test/**/*.test.js",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "keywords": [
+    "nexora",
+    "sdk",
+    "api",
+    "developer",
+    "multi-tenant",
+    "organizations",
+    "webhooks"
+  ],
+  "author": "Nexora Technologies",
+  "license": "MIT",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  }
+}
