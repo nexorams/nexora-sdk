@@ -1,4 +1,4 @@
-import { HttpClient } from '../http/client';
+import { HttpClient } from '../http/client.js';
 import { ProjectInfo, RequestOptions, UsageSummary, UsageSummaryQuery } from '../types';
 
 export class UsageResource {

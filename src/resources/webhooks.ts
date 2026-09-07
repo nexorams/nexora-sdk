@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
-import { HttpClient } from '../http/client';
-import { CreateWebhookParams, RequestOptions, WebhookEndpoint } from '../types';
+import { HttpClient } from '../http/client.js';
+import { CreateWebhookParams, RequestOptions, WebhookEndpoint } from '../types/index.js';
 
 export class WebhooksResource {
   constructor(private readonly http: HttpClient) {}

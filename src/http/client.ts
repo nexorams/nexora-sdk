@@ -1,5 +1,5 @@
-import { NexoraError } from '../errors/NexoraError';
-import { RequestOptions } from '../types';
+import { NexoraError } from '../errors/NexoraError.js';
+import type { RequestOptions } from '../types/index.js';
 
 export class HttpClient {
   private readonly apiKey: string;

@@ -1,4 +1,4 @@
-import { HttpClient } from '../http/client';
+import { HttpClient } from '../http/client.js';
 import { ListDeliveriesQuery, PaginatedResult, RequestOptions, WebhookDelivery } from '../types';
 
 export class WebhookDeliveriesResource {

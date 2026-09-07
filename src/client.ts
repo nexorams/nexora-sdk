@@ -1,14 +1,14 @@
-import { NexoraError } from './errors/NexoraError';
-import { HttpClient } from './http/client';
-import { WebhookDeliveriesResource } from './resources/deliveries';
-import { DomainsResource } from './resources/domains';
-import { ModulesResource } from './resources/modules';
-import { OrganizationsResource } from './resources/organizations';
-import { PlansResource } from './resources/plans';
-import { SubscriptionsResource } from './resources/subscriptions';
-import { UsageResource } from './resources/usage';
-import { UsersResource } from './resources/users';
-import { WebhooksResource } from './resources/webhooks';
+import { NexoraError } from './errors/NexoraError.js';
+import { HttpClient } from './http/client.js';
+import { WebhookDeliveriesResource } from './resources/deliveries.js';
+import { DomainsResource } from './resources/domains.js';
+import { ModulesResource } from './resources/modules.js';
+import { OrganizationsResource } from './resources/organizations.js';
+import { PlansResource } from './resources/plans.js';
+import { SubscriptionsResource } from './resources/subscriptions.js';
+import { UsageResource } from './resources/usage.js';
+import { UsersResource } from './resources/users.js';
+import { WebhooksResource } from './resources/webhooks.js';
 import { Environment, NexoraClientOptions } from './types';
 
 export class Nexora {

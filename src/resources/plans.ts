@@ -1,4 +1,4 @@
-import { HttpClient } from '../http/client';
+import { HttpClient } from '../http/client.js';
 import { ListPlansQuery, PlanItem, RequestOptions } from '../types';
 
 export class PlansResource {

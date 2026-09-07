@@ -1,4 +1,4 @@
-import { HttpClient } from '../http/client';
+import { HttpClient } from '../http/client.js';
 import { ListModulesQuery, ModuleItem, RequestOptions, UpdateModulesParams } from '../types';
 
 export class ModulesResource {
