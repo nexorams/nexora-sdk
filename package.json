@@ -1,6 +1,6 @@
 {
   "name": "@nexorams/sdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Official JavaScript and TypeScript SDK for the Nexora Developer Platform",
   "main": "./dist/index.js",
   "module": "./dist/esm/index.js",
