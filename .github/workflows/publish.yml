@@ -29,11 +29,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Run tests
-        run: npm test
-
       - name: Build SDK
         run: npm run build
+
+      - name: Run tests
+        run: npm test
 
       - name: Publish package
         run: npm publish --access public
