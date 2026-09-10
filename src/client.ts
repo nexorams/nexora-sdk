@@ -1,10 +1,16 @@
 import { NexoraError } from './errors/NexoraError.js';
 import { HttpClient } from './http/client.js';
+import { CompanyResource } from './resources/company.js';
 import { WebhookDeliveriesResource } from './resources/deliveries.js';
 import { DomainsResource } from './resources/domains.js';
+import { HospitalResource } from './resources/hospital.js';
+import { HotelResource } from './resources/hotel.js';
 import { ModulesResource } from './resources/modules.js';
 import { OrganizationsResource } from './resources/organizations.js';
+import { PharmacyResource } from './resources/pharmacy.js';
 import { PlansResource } from './resources/plans.js';
+import { ProjectResource } from './resources/project.js';
+import { SchoolResource } from './resources/school.js';
 import { SubscriptionsResource } from './resources/subscriptions.js';
 import { UsageResource } from './resources/usage.js';
 import { UsersResource } from './resources/users.js';
@@ -16,6 +22,7 @@ export class Nexora {
   public readonly environment: Environment;
   public readonly baseUrl: string;
 
+  public readonly project: ProjectResource;
   public readonly organizations: OrganizationsResource;
   public readonly users: UsersResource;
   public readonly modules: ModulesResource;
@@ -25,6 +32,13 @@ export class Nexora {
   public readonly webhooks: WebhooksResource;
   public readonly deliveries: WebhookDeliveriesResource;
   public readonly usage: UsageResource;
+
+  // Sector Domain Resources
+  public readonly school: SchoolResource;
+  public readonly hospital: HospitalResource;
+  public readonly hotel: HotelResource;
+  public readonly pharmacy: PharmacyResource;
+  public readonly company: CompanyResource;
 
   private readonly http: HttpClient;
 
@@ -54,8 +68,14 @@ export class Nexora {
 
     this.baseUrl = options.baseUrl ? options.baseUrl.replace(/\/+$/, '') : defaultBaseUrl;
 
-    this.http = new HttpClient(this.apiKey, this.baseUrl, options.timeoutMs || 30000);
+    this.http = new HttpClient(
+      this.apiKey,
+      this.baseUrl,
+      options.timeoutMs || 30000,
+      options.organizationId
+    );
 
+    this.project = new ProjectResource(this.http);
     this.organizations = new OrganizationsResource(this.http);
     this.users = new UsersResource(this.http);
     this.modules = new ModulesResource(this.http);
@@ -65,6 +85,13 @@ export class Nexora {
     this.webhooks = new WebhooksResource(this.http);
     this.deliveries = new WebhookDeliveriesResource(this.http);
     this.usage = new UsageResource(this.http);
+
+    // Sector Domain Resources
+    this.school = new SchoolResource(this.http);
+    this.hospital = new HospitalResource(this.http);
+    this.hotel = new HotelResource(this.http);
+    this.pharmacy = new PharmacyResource(this.http);
+    this.company = new CompanyResource(this.http);
   }
 
   /**

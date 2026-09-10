@@ -24,6 +24,13 @@ export class WebhookDeliveriesResource {
   }
 
   /**
+   * Get delivery attempt details by ID, including payload, headers, and error logs.
+   */
+  public async get(id: string, options?: RequestOptions): Promise<WebhookDelivery> {
+    return this.http.get<WebhookDelivery>(`/webhook-deliveries/${id}`, options);
+  }
+
+  /**
    * Manually trigger a redelivery of a failed webhook event.
    */
   public async retry(id: string, options?: RequestOptions): Promise<{ data?: WebhookDelivery; [key: string]: unknown }> {

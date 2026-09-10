@@ -1,6 +1,13 @@
 import * as crypto from 'crypto';
 import { HttpClient } from '../http/client.js';
-import { CreateWebhookParams, RequestOptions, WebhookEndpoint } from '../types/index.js';
+import {
+  CreateWebhookParams,
+  RequestOptions,
+  RotateSecretResult,
+  UpdateWebhookParams,
+  WebhookEndpoint,
+  WebhookTestResult,
+} from '../types/index.js';
 
 export class WebhooksResource {
   constructor(private readonly http: HttpClient) {}
@@ -22,6 +29,56 @@ export class WebhooksResource {
    */
   public async list(options?: RequestOptions): Promise<WebhookEndpoint[]> {
     return this.http.get<WebhookEndpoint[]>('/webhook-endpoints', options);
+  }
+
+  /**
+   * Get a registered webhook endpoint by ID.
+   */
+  public async get(id: string, options?: RequestOptions): Promise<WebhookEndpoint> {
+    return this.http.get<WebhookEndpoint>(`/webhook-endpoints/${id}`, options);
+  }
+
+  /**
+   * Update a registered webhook endpoint (URL, subscribed events, description, status).
+   */
+  public async update(
+    id: string,
+    params: UpdateWebhookParams,
+    options?: RequestOptions
+  ): Promise<WebhookEndpoint> {
+    return this.http.patch<WebhookEndpoint>(`/webhook-endpoints/${id}`, params, options);
+  }
+
+  /**
+   * Rotate signing secret for a registered webhook endpoint.
+   * Immediately invalidates previous secret and returns new secret (show-once).
+   */
+  public async rotateSecret(
+    id: string,
+    options?: RequestOptions
+  ): Promise<RotateSecretResult> {
+    return this.http.post<RotateSecretResult>(`/webhook-endpoints/${id}/rotate-secret`, {}, options);
+  }
+
+  /**
+   * Send a test ping event (webhook.test) to verify endpoint connectivity.
+   */
+  public async test(
+    id: string,
+    params?: { eventType?: string },
+    options?: RequestOptions
+  ): Promise<WebhookTestResult> {
+    return this.http.post<WebhookTestResult>(`/webhook-endpoints/${id}/test`, params || {}, options);
+  }
+
+  /**
+   * Disable a webhook endpoint.
+   */
+  public async disable(
+    id: string,
+    options?: RequestOptions
+  ): Promise<WebhookEndpoint> {
+    return this.http.post<WebhookEndpoint>(`/webhook-endpoints/${id}/disable`, {}, options);
   }
 
   /**

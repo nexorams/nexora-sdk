@@ -5,11 +5,13 @@ export class HttpClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly defaultTimeoutMs: number;
+  public defaultOrganizationId?: string;
 
-  constructor(apiKey: string, baseUrl: string, timeoutMs: number = 30000) {
+  constructor(apiKey: string, baseUrl: string, timeoutMs: number = 30000, defaultOrganizationId?: string) {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.defaultTimeoutMs = timeoutMs;
+    this.defaultOrganizationId = defaultOrganizationId;
   }
 
   /**
@@ -51,6 +53,11 @@ export class HttpClient {
 
     if (options?.idempotencyKey) {
       headers['Idempotency-Key'] = options.idempotencyKey.trim();
+    }
+
+    const orgId = options?.organizationId || this.defaultOrganizationId;
+    if (orgId) {
+      headers['X-Organization-Id'] = orgId.trim();
     }
 
     try {

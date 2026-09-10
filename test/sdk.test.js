@@ -11,11 +11,17 @@ const {
   UsersResource,
   ModulesResource,
   PlansResource,
+  ProjectResource,
   SubscriptionsResource,
   DomainsResource,
   WebhooksResource,
   WebhookDeliveriesResource,
   UsageResource,
+  SchoolResource,
+  HospitalResource,
+  HotelResource,
+  PharmacyResource,
+  CompanyResource,
 } = require('../dist/index.js');
 
 test('Nexora SDK Comprehensive Test Suite', async (t) => {
@@ -63,6 +69,7 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
 
     await t2.test('Exposes all required top-level resource properties', () => {
       const client = new Nexora({ apiKey: 'nx_test_sample' });
+      assert.ok(client.project instanceof ProjectResource);
       assert.ok(client.organizations instanceof OrganizationsResource);
       assert.ok(client.users instanceof UsersResource);
       assert.ok(client.modules instanceof ModulesResource);
@@ -72,6 +79,19 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
       assert.ok(client.webhooks instanceof WebhooksResource);
       assert.ok(client.deliveries instanceof WebhookDeliveriesResource);
       assert.ok(client.usage instanceof UsageResource);
+      assert.ok(client.school instanceof SchoolResource);
+      assert.ok(client.hospital instanceof HospitalResource);
+      assert.ok(client.hotel instanceof HotelResource);
+      assert.ok(client.pharmacy instanceof PharmacyResource);
+      assert.ok(client.company instanceof CompanyResource);
+    });
+
+    await t2.test('Supports optional organizationId default in client configuration', () => {
+      const client = new Nexora({
+        apiKey: 'nx_test_sample',
+        organizationId: 'org_configured_default',
+      });
+      assert.ok(client.school instanceof SchoolResource);
     });
   });
 
@@ -522,6 +542,65 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
 
       mockResponse = {
         statusCode: 200,
+        body: {
+          data: { id: 'wh_101', url: 'https://example.com/webhooks', status: 'ACTIVE' },
+        },
+      };
+
+      const got = await client.webhooks.get('wh_101');
+      assert.equal(lastRequest.url, '/developer/v1/webhook-endpoints/wh_101');
+      assert.equal(got.id, 'wh_101');
+
+      mockResponse = {
+        statusCode: 200,
+        body: {
+          data: { id: 'wh_101', url: 'https://example.com/updated-webhooks' },
+        },
+      };
+
+      const updated = await client.webhooks.update('wh_101', { url: 'https://example.com/updated-webhooks' });
+      assert.equal(lastRequest.method, 'PATCH');
+      assert.equal(lastRequest.url, '/developer/v1/webhook-endpoints/wh_101');
+      assert.equal(updated.url, 'https://example.com/updated-webhooks');
+
+      mockResponse = {
+        statusCode: 200,
+        body: {
+          data: { secret: 'whsec_rot_999', secretVersion: 2 },
+        },
+      };
+
+      const rotated = await client.webhooks.rotateSecret('wh_101');
+      assert.equal(lastRequest.method, 'POST');
+      assert.equal(lastRequest.url, '/developer/v1/webhook-endpoints/wh_101/rotate-secret');
+      assert.equal(rotated.secret, 'whsec_rot_999');
+
+      mockResponse = {
+        statusCode: 200,
+        body: {
+          data: { success: true, deliveryId: 'del_test_1', statusCode: 200 },
+        },
+      };
+
+      const testRes = await client.webhooks.test('wh_101');
+      assert.equal(lastRequest.method, 'POST');
+      assert.equal(lastRequest.url, '/developer/v1/webhook-endpoints/wh_101/test');
+      assert.equal(testRes.success, true);
+
+      mockResponse = {
+        statusCode: 200,
+        body: {
+          data: { id: 'wh_101', status: 'DISABLED' },
+        },
+      };
+
+      const disabled = await client.webhooks.disable('wh_101');
+      assert.equal(lastRequest.method, 'POST');
+      assert.equal(lastRequest.url, '/developer/v1/webhook-endpoints/wh_101/disable');
+      assert.equal(disabled.status, 'DISABLED');
+
+      mockResponse = {
+        statusCode: 200,
         body: { success: true, message: 'Webhook endpoint deleted.' },
       };
 
@@ -531,7 +610,7 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
       assert.equal(del.success, true);
     });
 
-    await t2.test('Deliveries: lists history with pagination and retries delivery', async () => {
+    await t2.test('Deliveries: lists history with pagination, gets single delivery, and retries delivery', async () => {
       mockResponse = {
         statusCode: 200,
         body: {
@@ -543,6 +622,18 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
       const deliveries = await client.deliveries.list({ status: 'FAILED' });
       assert.equal(lastRequest.url, '/developer/v1/webhook-deliveries?status=FAILED');
       assert.equal(deliveries.data.length, 1);
+
+      mockResponse = {
+        statusCode: 200,
+        body: {
+          data: { id: 'del_1', status: 'FAILED', endpointId: 'wh_101' },
+        },
+      };
+
+      const singleDelivery = await client.deliveries.get('del_1');
+      assert.equal(lastRequest.method, 'GET');
+      assert.equal(lastRequest.url, '/developer/v1/webhook-deliveries/del_1');
+      assert.equal(singleDelivery.id, 'del_1');
 
       mockResponse = {
         statusCode: 200,
@@ -578,6 +669,280 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
       const proj = await client.usage.getProject();
       assert.equal(lastRequest.url, '/developer/v1/project');
       assert.equal(proj.name, 'Production Project');
+    });
+
+    await t2.test('Project: retrieves project details, active modules, and account module credits', async () => {
+      mockResponse = {
+        statusCode: 200,
+        body: {
+          data: {
+            id: 'proj_101',
+            name: 'Acme School Portal',
+            slug: 'acme-school-portal',
+            environment: 'TEST',
+            organizationSector: 'SCHOOL',
+          },
+        },
+      };
+
+      const project = await client.project.get();
+      assert.equal(lastRequest.url, '/developer/v1/project');
+      assert.equal(project.id, 'proj_101');
+      assert.equal(project.organizationSector, 'SCHOOL');
+
+      mockResponse = {
+        statusCode: 200,
+        body: {
+          data: {
+            sector: 'SCHOOL',
+            environment: 'TEST',
+            activeModulesCount: 2,
+            creditsReservedInProject: 0,
+            accountCreditSummary: { limit: 10, usedCredits: 0, remainingCredits: 10, unlimited: false },
+            modules: [
+              { moduleCode: 'ATTENDANCE', name: 'Attendance Management', isCore: false, moduleCreditsReserved: 0 },
+              { moduleCode: 'AUTH', name: 'Identity & Authentication', isCore: true, moduleCreditsReserved: 0 },
+            ],
+          },
+        },
+      };
+
+      const modulesRes = await client.project.modules();
+      assert.equal(lastRequest.url, '/developer/v1/project/modules');
+      assert.equal(modulesRes.sector, 'SCHOOL');
+      assert.equal(modulesRes.modules.length, 2);
+
+      mockResponse = {
+        statusCode: 200,
+        body: {
+          data: {
+            limit: 10,
+            usedCredits: 0,
+            remainingCredits: 10,
+            unlimited: false,
+            isUnlimited: false,
+          },
+        },
+      };
+
+      const creditsRes = await client.project.moduleCredits();
+      assert.equal(lastRequest.url, '/developer/v1/project/module-credits');
+      assert.equal(creditsRes.limit, 10);
+      assert.equal(creditsRes.remainingCredits, 10);
+    });
+
+    await t2.test('Domain Resources & Multi-Tenant X-Organization-Id Header Propagation', async (t3) => {
+      const orgClient = new Nexora({
+        apiKey: 'nx_test_mockkey123',
+        baseUrl: `http://127.0.0.1:${port}/developer/v1`,
+        organizationId: 'org_default_school_101',
+      });
+
+      await t3.test('School: students.list with query and per-request organization override', async () => {
+        mockResponse = {
+          statusCode: 200,
+          body: {
+            data: [{ id: 'stu_1', firstName: 'Alice', lastName: 'Wonder' }],
+            pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+          },
+        };
+
+        const res = await orgClient.school.students.list(
+          { search: 'Alice', limit: 10 },
+          { organizationId: 'org_override_school_202' }
+        );
+
+        assert.equal(lastRequest.method, 'GET');
+        assert.equal(lastRequest.url, '/developer/v1/school/students?limit=10&search=Alice');
+        assert.equal(lastRequest.headers['x-organization-id'], 'org_override_school_202');
+        assert.equal(res.data.length, 1);
+        assert.equal(res.data[0].firstName, 'Alice');
+      });
+
+      await t3.test('School: students.create uses default organizationId', async () => {
+        mockResponse = {
+          statusCode: 201,
+          body: {
+            data: { id: 'stu_2', firstName: 'Bob', lastName: 'Builder' },
+          },
+        };
+
+        const res = await orgClient.school.students.create({
+          firstName: 'Bob',
+          lastName: 'Builder',
+        });
+
+        assert.equal(lastRequest.method, 'POST');
+        assert.equal(lastRequest.url, '/developer/v1/school/students');
+        assert.equal(lastRequest.headers['x-organization-id'], 'org_default_school_101');
+        assert.equal(res.id, 'stu_2');
+      });
+
+      await t3.test('School: attendance.record and classes.list', async () => {
+        mockResponse = {
+          statusCode: 200,
+          body: { data: { recordedCount: 1 } },
+        };
+
+        const attRes = await orgClient.school.attendance.record({
+          records: [{ studentId: 'stu_2', status: 'PRESENT' }],
+        });
+        assert.equal(lastRequest.method, 'POST');
+        assert.equal(lastRequest.url, '/developer/v1/school/attendance');
+        assert.equal(attRes.recordedCount, 1);
+
+        mockResponse = {
+          statusCode: 200,
+          body: { data: [{ id: 'cls_1', name: 'Grade 10-A' }] },
+        };
+
+        const classes = await orgClient.school.classes.list();
+        assert.equal(lastRequest.method, 'GET');
+        assert.equal(lastRequest.url, '/developer/v1/school/classes');
+        assert.equal(classes.length, 1);
+        assert.equal(classes[0].name, 'Grade 10-A');
+      });
+
+      await t3.test('Hospital: patients.list, appointments.create, vitals.record', async () => {
+        mockResponse = {
+          statusCode: 200,
+          body: { data: [{ id: 'pat_1', firstName: 'Jane', lastName: 'Doe' }], pagination: { total: 1 } },
+        };
+
+        const patients = await orgClient.hospital.patients.list();
+        assert.equal(lastRequest.url, '/developer/v1/hospital/patients');
+        assert.equal(patients.data[0].id, 'pat_1');
+
+        mockResponse = {
+          statusCode: 201,
+          body: { data: { id: 'apt_1', patientId: 'pat_1', scheduledAt: '2026-10-15T09:00:00Z' } },
+        };
+
+        const apt = await orgClient.hospital.appointments.create({
+          patientId: 'pat_1',
+          scheduledAt: '2026-10-15T09:00:00Z',
+        });
+        assert.equal(lastRequest.method, 'POST');
+        assert.equal(lastRequest.url, '/developer/v1/hospital/appointments');
+        assert.equal(apt.id, 'apt_1');
+
+        mockResponse = {
+          statusCode: 201,
+          body: { data: { id: 'vit_1', heartRate: 75 } },
+        };
+
+        const vit = await orgClient.hospital.vitals.record({
+          patientId: 'pat_1',
+          heartRate: 75,
+        });
+        assert.equal(lastRequest.method, 'POST');
+        assert.equal(lastRequest.url, '/developer/v1/hospital/vitals');
+        assert.equal(vit.heartRate, 75);
+      });
+
+      await t3.test('Hotel: rooms.list and reservations.create', async () => {
+        mockResponse = {
+          statusCode: 200,
+          body: {
+            data: [{ id: 'room_101', roomNumber: '101', type: 'DELUXE' }],
+            pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+          },
+        };
+
+        const rooms = await orgClient.hotel.rooms.list();
+        assert.equal(lastRequest.url, '/developer/v1/hotel/rooms');
+        assert.equal(rooms.data.length, 1);
+
+        mockResponse = {
+          statusCode: 201,
+          body: { data: { id: 'res_1', guestName: 'Alice', checkIn: '2026-10-01' } },
+        };
+
+        const res = await orgClient.hotel.reservations.create({
+          guestName: 'Alice',
+          checkIn: '2026-10-01',
+          checkOut: '2026-10-05',
+        });
+        assert.equal(lastRequest.method, 'POST');
+        assert.equal(lastRequest.url, '/developer/v1/hotel/reservations');
+        assert.equal(res.id, 'res_1');
+      });
+
+      await t3.test('Pharmacy: products.list, prescriptions.list, sales.list', async () => {
+        mockResponse = {
+          statusCode: 200,
+          body: {
+            data: [{ id: 'prd_1', name: 'Amoxicillin' }],
+            pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+          },
+        };
+
+        const prods = await orgClient.pharmacy.products.list();
+        assert.equal(lastRequest.url, '/developer/v1/pharmacy/products');
+        assert.equal(prods.data[0].name, 'Amoxicillin');
+
+        mockResponse = {
+          statusCode: 200,
+          body: {
+            data: [{ id: 'rx_1', patientName: 'John Doe' }],
+            pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+          },
+        };
+
+        const rxs = await orgClient.pharmacy.prescriptions.list();
+        assert.equal(lastRequest.url, '/developer/v1/pharmacy/prescriptions');
+        assert.equal(rxs.data.length, 1);
+
+        mockResponse = {
+          statusCode: 200,
+          body: {
+            data: [{ id: 'sale_1', totalAmount: 45.5 }],
+            pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+          },
+        };
+
+        const sales = await orgClient.pharmacy.sales.list();
+        assert.equal(lastRequest.url, '/developer/v1/pharmacy/sales');
+        assert.equal(sales.data[0].totalAmount, 45.5);
+      });
+
+      await t3.test('Company: employees.list, attendance.record, payroll.list', async () => {
+        mockResponse = {
+          statusCode: 200,
+          body: {
+            data: [{ id: 'emp_1', firstName: 'Mark', role: 'Engineer' }],
+            pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+          },
+        };
+
+        const emps = await orgClient.company.employees.list();
+        assert.equal(lastRequest.url, '/developer/v1/company/employees');
+        assert.equal(emps.data[0].firstName, 'Mark');
+
+        mockResponse = {
+          statusCode: 200,
+          body: { data: { success: true } },
+        };
+
+        const attRes = await orgClient.company.attendance.record({
+          records: [{ employeeId: 'emp_1', status: 'PRESENT' }],
+        });
+        assert.equal(lastRequest.method, 'POST');
+        assert.equal(lastRequest.url, '/developer/v1/company/attendance');
+        assert.equal(attRes.success, true);
+
+        mockResponse = {
+          statusCode: 200,
+          body: {
+            data: [{ id: 'pay_1', employeeId: 'emp_1', netPay: 5000 }],
+            pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
+          },
+        };
+
+        const payroll = await orgClient.company.payroll.list();
+        assert.equal(lastRequest.url, '/developer/v1/company/payroll');
+        assert.equal(payroll.data[0].netPay, 5000);
+      });
     });
 
     await t2.test('Handles request timeout error', async () => {

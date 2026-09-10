@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const ts = require('typescript');
 
 function compile(configPath, label) {
-  console.log(`[build] Compiling ${label} using in-process TypeScript compiler...`);
+  console.log(`[compile] Compiling ${label} using in-process TypeScript API...`);
   const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
   if (configFile.error) {
     console.error(ts.flattenDiagnosticMessageText(configFile.error.messageText, '\n'));
@@ -39,11 +39,11 @@ function compile(configPath, label) {
   }
 
   if (hasErrors || emitResult.emitSkipped) {
-    console.error(`[build] ${label} compilation failed.`);
+    console.error(`[compile] ${label} compilation failed.`);
     return false;
   }
 
-  console.log(`[build] ${label} compilation succeeded.`);
+  console.log(`[compile] ${label} compilation succeeded.`);
   return true;
 }
 
@@ -62,5 +62,4 @@ fs.writeFileSync(
   'utf8'
 );
 
-console.log('[build] Created dist/esm/package.json with type=module');
-console.log('[build] Nexora SDK build completed successfully.');
+console.log('[compile] ALL BUILDS COMPLETED SUCCESSFULLY!');

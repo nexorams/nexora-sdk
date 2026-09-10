@@ -8,18 +8,18 @@ Seamlessly automate multi-tenant organization provisioning (Schools, Hospitals, 
 
 ## Installation
 
-> **Package publication pending.**  
-> The official package will be available via npm upon registry release:
+Install the official package from npm:
 
 ```bash
 npm install @nexorams/sdk
 ```
 
-For local development or monorepo consumption prior to public release:
+Or using pnpm or yarn:
 
 ```bash
-# Install directly from the local package directory:
-npm install ./packages/sdk
+pnpm add @nexorams/sdk
+# or
+yarn add @nexorams/sdk
 ```
 
 ---
@@ -255,7 +255,7 @@ Nexora dispatches cryptographically signed HMAC-SHA256 webhooks for real-time li
 ```typescript
 const webhook = await nexora.webhooks.create({
   url: 'https://api.yourdomain.com/webhooks/nexora',
-  events: ['organization.created', 'subscription.trial_ending', 'payment.succeeded'],
+  events: ['organization.provisioned', 'user.created', 'subscription.updated'],
 });
 
 // Store signing secret safely (returned ONLY ONCE upon creation):
@@ -274,7 +274,7 @@ const app = express();
 
 // Use express.raw or pass raw body buffer/string
 app.post('/webhooks/nexora', express.raw({ type: 'application/json' }), (req, res) => {
-  const signature = req.headers['nexora-signature'] as string;
+  const signature = req.headers['x-nexora-signature'] as string;
   const secret = process.env.NEXORA_WEBHOOK_SECRET!;
 
   const isValid = Nexora.verifyWebhookSignature(
@@ -289,7 +289,7 @@ app.post('/webhooks/nexora', express.raw({ type: 'application/json' }), (req, re
   }
 
   const event = JSON.parse(req.body.toString());
-  console.log('Received verified event:', event.type);
+  console.log('Received verified event:', event.event);
   res.status(200).json({ received: true });
 });
 ```
