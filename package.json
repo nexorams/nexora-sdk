@@ -35,7 +35,7 @@
     "build:esm": "tsc -p tsconfig.esm.json",
     "build": "node build.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test test/**/*.test.js",
+    "test": "node --test test/*.test.js",
     "prepublishOnly": "npm run typecheck && npm run build && npm test"
   },
   "keywords": [
