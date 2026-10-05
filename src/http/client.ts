@@ -1,5 +1,6 @@
 import { NexoraError } from '../errors/NexoraError.js';
 import type { RequestOptions } from '../types/index.js';
+import { USER_AGENT } from '../version.js';
 
 export class HttpClient {
   private readonly apiKey: string;
@@ -47,7 +48,7 @@ export class HttpClient {
       'Authorization': `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': 'Nexora-Node-SDK/1.0.0',
+      'User-Agent': USER_AGENT,
       ...(options?.headers || {}),
     };
 

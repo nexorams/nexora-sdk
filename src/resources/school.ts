@@ -4,6 +4,7 @@ import {
   CreateSchoolClassParams,
   CreateStudentParams,
   ListAttendanceQuery,
+  ListSchoolClassesQuery,
   ListStudentsQuery,
   PaginatedResult,
   RecordAttendanceParams,
@@ -24,7 +25,7 @@ export class SchoolResource {
   };
 
   public readonly classes: {
-    list: (options?: RequestOptions) => Promise<SchoolClassItem[]>;
+    list: (query?: ListSchoolClassesQuery, options?: RequestOptions) => Promise<PaginatedResult<SchoolClassItem>>;
     create: (params: CreateSchoolClassParams, options?: RequestOptions) => Promise<SchoolClassItem>;
   };
 
@@ -63,8 +64,15 @@ export class SchoolResource {
     };
 
     this.classes = {
-      list: (options?: RequestOptions) =>
-        this.http.get<SchoolClassItem[]>('/school/classes', options),
+      list: (query?: ListSchoolClassesQuery, options?: RequestOptions) =>
+        this.http.get<PaginatedResult<SchoolClassItem>>('/school/classes', {
+          ...options,
+          query: {
+            page: query?.page,
+            limit: query?.limit,
+            ...(options?.query || {}),
+          },
+        }),
       create: (params: CreateSchoolClassParams, options?: RequestOptions) =>
         this.http.post<SchoolClassItem>('/school/classes', params, options),
     };

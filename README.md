@@ -255,7 +255,7 @@ Nexora dispatches cryptographically signed HMAC-SHA256 webhooks for real-time li
 ```typescript
 const webhook = await nexora.webhooks.create({
   url: 'https://api.yourdomain.com/webhooks/nexora',
-  events: ['organization.provisioned', 'user.created', 'subscription.updated'],
+  events: ['organization.provisioned', 'user.created', 'domain.verified'],
 });
 
 // Store signing secret safely (returned ONLY ONCE upon creation):

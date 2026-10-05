@@ -5,6 +5,7 @@ export default Nexora;
 
 export { NexoraError, NexoraErrorData } from './errors/NexoraError.js';
 export { HttpClient } from './http/client.js';
+export { SDK_VERSION } from './version.js';
 export { OrganizationsResource } from './resources/organizations.js';
 export { ProjectResource } from './resources/project.js';
 export { SchoolResource } from './resources/school.js';

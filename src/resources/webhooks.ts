@@ -95,9 +95,9 @@ export class WebhooksResource {
    * Verify an incoming webhook signature using HMAC-SHA256 and constant-time comparison.
    * Matches the canonical Nexora backend WebhookSigningService algorithm.
    *
-   * Supports:
-   * 1. Standard Nexora-Signature: "t=1700000000,v1=abcdef..."
-   * 2. Direct HMAC hash: "v1=abcdef..." or raw hex
+   * The default replay-safe mode requires the standard Nexora-Signature
+   * format: "t=1700000000,v1=abcdef...". Legacy direct HMAC hashes are
+   * accepted only when toleranceSeconds is explicitly set to 0.
    *
    * @param payload Raw body buffer or string received from the webhook POST request
    * @param header The Nexora-Signature or X-Nexora-Signature header string
@@ -135,11 +135,19 @@ export class WebhooksResource {
       signatureHash = header.trim();
     }
 
-    if (!signatureHash) {
+    if (!signatureHash || !/^[a-fA-F0-9]{64}$/.test(signatureHash)) {
       return false;
     }
 
     // Verify timestamp within tolerance window to prevent replay attacks
+    if (toleranceSeconds < 0 || (toleranceSeconds > 0 && timestamp === null)) {
+      return false;
+    }
+    if (timestamp !== null) {
+      if (!Number.isSafeInteger(timestamp) || timestamp <= 0) {
+        return false;
+      }
+    }
     if (timestamp !== null && toleranceSeconds > 0) {
       const now = Math.floor(Date.now() / 1000);
       if (Math.abs(now - timestamp) > toleranceSeconds) {
@@ -153,11 +161,6 @@ export class WebhooksResource {
     hmac.update(signaturePayload);
     const expectedHash = hmac.digest('hex');
 
-    // Compute direct fallback in case payload was signed directly without timestamp prefix
-    const directHmac = crypto.createHmac('sha256', secret);
-    directHmac.update(payloadString);
-    const directExpectedHash = directHmac.digest('hex');
-
     try {
       const actualBuf = Buffer.from(signatureHash, 'hex');
       const expectedBuf = Buffer.from(expectedHash, 'hex');
@@ -165,9 +168,12 @@ export class WebhooksResource {
         return true;
       }
 
-      const directBuf = Buffer.from(directExpectedHash, 'hex');
-      if (actualBuf.length === directBuf.length && crypto.timingSafeEqual(actualBuf, directBuf)) {
-        return true;
+      if (timestamp === null && toleranceSeconds === 0) {
+        const directExpectedHash = crypto.createHmac('sha256', secret).update(payloadString).digest('hex');
+        const directBuf = Buffer.from(directExpectedHash, 'hex');
+        if (actualBuf.length === directBuf.length && crypto.timingSafeEqual(actualBuf, directBuf)) {
+          return true;
+        }
       }
     } catch {
       return false;

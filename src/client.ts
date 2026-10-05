@@ -40,6 +40,18 @@ export class Nexora {
   public readonly pharmacy: PharmacyResource;
   public readonly company: CompanyResource;
 
+  // Ergonomic aliases for canonical sector resources. These do not duplicate
+  // business logic; each points at the corresponding sector implementation.
+  public readonly students: SchoolResource['students'];
+  public readonly attendance: SchoolResource['attendance'];
+  public readonly patients: HospitalResource['patients'];
+  public readonly appointments: HospitalResource['appointments'];
+  public readonly rooms: HotelResource['rooms'];
+  public readonly reservations: HotelResource['reservations'];
+  public readonly products: PharmacyResource['products'];
+  public readonly employees: CompanyResource['employees'];
+  public readonly payroll: CompanyResource['payroll'];
+
   private readonly http: HttpClient;
 
   constructor(options: NexoraClientOptions) {
@@ -61,7 +73,32 @@ export class Nexora {
     }
 
     this.apiKey = key;
-    this.environment = options.environment || (key.startsWith('nx_live_') ? 'live' : 'sandbox');
+    const inferredEnvironment: Environment = key.startsWith('nx_live_') ? 'live' : 'sandbox';
+    if (options.environment) {
+      const requestedEnvironment = String(options.environment).toLowerCase();
+      const normalizedEnvironment = requestedEnvironment === 'test'
+        ? 'sandbox'
+        : requestedEnvironment === 'live'
+          ? 'live'
+          : requestedEnvironment === 'sandbox'
+            ? 'sandbox'
+            : null;
+      if (!normalizedEnvironment) {
+        throw new NexoraError({
+          message: "Environment must be 'sandbox' or 'live'.",
+          code: 'INVALID_ENVIRONMENT',
+          status: 400,
+        });
+      }
+      if (normalizedEnvironment !== inferredEnvironment) {
+        throw new NexoraError({
+          message: `Environment '${requestedEnvironment}' does not match the API key prefix.`,
+          code: 'ENVIRONMENT_MISMATCH',
+          status: 400,
+        });
+      }
+    }
+    this.environment = inferredEnvironment;
 
     // Default to the authoritative Nexora Developer API base URL
     const defaultBaseUrl = 'https://api.nexoragms.com/developer/v1';
@@ -92,6 +129,16 @@ export class Nexora {
     this.hotel = new HotelResource(this.http);
     this.pharmacy = new PharmacyResource(this.http);
     this.company = new CompanyResource(this.http);
+
+    this.students = this.school.students;
+    this.attendance = this.school.attendance;
+    this.patients = this.hospital.patients;
+    this.appointments = this.hospital.appointments;
+    this.rooms = this.hotel.rooms;
+    this.reservations = this.hotel.reservations;
+    this.products = this.pharmacy.products;
+    this.employees = this.company.employees;
+    this.payroll = this.company.payroll;
   }
 
   /**

@@ -21,7 +21,7 @@ export class UsageResource {
   }
 
   /**
-   * Retrieve authenticated developer project profile, environment, and tier quota limits.
+   * Retrieve authenticated developer project metadata, environment, status, and sector binding.
    */
   public async getProject(options?: RequestOptions): Promise<ProjectInfo> {
     return this.http.get<ProjectInfo>('/project', options);

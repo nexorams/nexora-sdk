@@ -22,7 +22,12 @@ const {
   HotelResource,
   PharmacyResource,
   CompanyResource,
+  SDK_VERSION,
 } = require('../dist/index.js');
+
+test('SDK_VERSION (sent in the User-Agent) matches package.json', () => {
+  assert.equal(SDK_VERSION, require('../package.json').version);
+});
 
 test('Nexora SDK Comprehensive Test Suite', async (t) => {
   await t.test('Client Initialization & Configuration', async (t2) => {
@@ -48,6 +53,15 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
       const client = new Nexora({ apiKey: 'nx_live_abc123' });
       assert.equal(client.environment, 'live');
       assert.equal(client.baseUrl, 'https://api.nexoragms.com/developer/v1');
+    });
+
+    await t2.test('Rejects an environment that contradicts the API key prefix', () => {
+      assert.throws(() => new Nexora({ apiKey: 'nx_test_abc123', environment: 'live' }), (err) => {
+        return err instanceof NexoraError && err.code === 'ENVIRONMENT_MISMATCH' && err.status === 400;
+      });
+      assert.throws(() => new Nexora({ apiKey: 'nx_live_abc123', environment: 'sandbox' }), (err) => {
+        return err instanceof NexoraError && err.code === 'ENVIRONMENT_MISMATCH' && err.status === 400;
+      });
     });
 
     await t2.test('Trims whitespace from apiKey', () => {
@@ -93,6 +107,19 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
       });
       assert.ok(client.school instanceof SchoolResource);
     });
+
+    await t2.test('Exposes top-level aliases without duplicating sector resources', () => {
+      const client = new Nexora({ apiKey: 'nx_test_sample' });
+      assert.equal(client.students, client.school.students);
+      assert.equal(client.attendance, client.school.attendance);
+      assert.equal(client.patients, client.hospital.patients);
+      assert.equal(client.appointments, client.hospital.appointments);
+      assert.equal(client.rooms, client.hotel.rooms);
+      assert.equal(client.reservations, client.hotel.reservations);
+      assert.equal(client.products, client.pharmacy.products);
+      assert.equal(client.employees, client.company.employees);
+      assert.equal(client.payroll, client.company.payroll);
+    });
   });
 
   await t.test('Security & Secret Redaction', async (t2) => {
@@ -130,6 +157,11 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
       assert.equal(isValid, true);
     });
 
+    await t2.test('Rejects an untimestamped signature in default replay-safe mode', () => {
+      const sig = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+      assert.equal(Nexora.verifyWebhookSignature(payload, `v1=${sig}`, secret), false);
+    });
+
     await t2.test('Verifies valid Buffer payload input', () => {
       const signaturePayload = `${now}.${payload}`;
       const hash = crypto.createHmac('sha256', secret).update(signaturePayload).digest('hex');
@@ -143,7 +175,7 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
       const hash = crypto.createHmac('sha256', secret).update(payload).digest('hex');
       const header = `v1=${hash}`;
 
-      const isValid = Nexora.verifyWebhookSignature(payload, header, secret, 300);
+      const isValid = Nexora.verifyWebhookSignature(payload, header, secret, 0);
       assert.equal(isValid, true);
     });
 
@@ -225,7 +257,7 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
 
       await client.organizations.list();
       assert.equal(lastRequest.headers.authorization, 'Bearer nx_test_mockkey123');
-      assert.equal(lastRequest.headers['user-agent'], 'Nexora-Node-SDK/1.0.0');
+      assert.equal(lastRequest.headers['user-agent'], `Nexora-Node-SDK/${require('../package.json').version}`);
       assert.equal(lastRequest.url, '/developer/v1/organizations');
     });
 
@@ -413,12 +445,14 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
         statusCode: 200,
         body: {
           data: [{ id: 'usr_1', firstName: 'Jane' }],
+          pagination: { page: 1, limit: 20, total: 1, totalPages: 1 },
         },
       };
 
       const users = await client.users.list('org_123', { role: 'teacher' });
       assert.equal(lastRequest.url, '/developer/v1/organizations/org_123/users?role=teacher');
-      assert.equal(users.length, 1);
+      assert.equal(users.data.length, 1);
+      assert.equal(users.pagination.total, 1);
     });
 
     await t2.test('Modules: lists system catalog and updates organization features', async () => {
@@ -651,18 +685,36 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
       mockResponse = {
         statusCode: 200,
         body: {
-          data: { totalRequests: 1540, successfulRequests: 1530, failedRequests: 10 },
+          data: {
+            period: '2026-09',
+            totalRequests: 1540,
+            successCount: 1530,
+            clientErrorCount: 9,
+            serverErrorCount: 1,
+            avgLatencyMs: 120,
+            quota: { limit: 25000, used: 1540, remaining: 23460, unlimited: false },
+            endpoints: { organizations: 40, school: 1500 },
+          },
         },
       };
 
       const summary = await client.usage.summary({ period: '2026-09' });
       assert.equal(lastRequest.url, '/developer/v1/usage?period=2026-09');
       assert.equal(summary.totalRequests, 1540);
+      assert.equal(summary.successCount, 1530);
+      assert.equal(summary.quota.remaining, 23460);
 
       mockResponse = {
         statusCode: 200,
         body: {
-          data: { id: 'proj_1', name: 'Production Project', environment: 'LIVE' },
+          data: {
+            id: 'proj_1',
+            name: 'Production Project',
+            slug: 'production-project',
+            status: 'ACTIVE',
+            environment: 'LIVE',
+            organizationSector: 'COMPANY',
+          },
         },
       };
 
@@ -793,14 +845,18 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
 
         mockResponse = {
           statusCode: 200,
-          body: { data: [{ id: 'cls_1', name: 'Grade 10-A' }] },
+          body: {
+            data: [{ id: 'cls_1', name: 'Grade 10-A' }],
+            pagination: { page: 2, limit: 10, total: 11, totalPages: 2 },
+          },
         };
 
-        const classes = await orgClient.school.classes.list();
+        const classes = await orgClient.school.classes.list({ page: 2, limit: 10 });
         assert.equal(lastRequest.method, 'GET');
-        assert.equal(lastRequest.url, '/developer/v1/school/classes');
-        assert.equal(classes.length, 1);
-        assert.equal(classes[0].name, 'Grade 10-A');
+        assert.equal(lastRequest.url, '/developer/v1/school/classes?page=2&limit=10');
+        assert.equal(classes.data.length, 1);
+        assert.equal(classes.data[0].name, 'Grade 10-A');
+        assert.equal(classes.pagination.total, 11);
       });
 
       await t3.test('Hospital: patients.list, appointments.create, vitals.record', async () => {

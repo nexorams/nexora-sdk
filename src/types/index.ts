@@ -368,11 +368,13 @@ export interface ListDeliveriesQuery {
 export interface ProjectInfo {
   id: string;
   name: string;
-  slug?: string;
+  slug: string;
+  description?: string;
+  status?: 'ACTIVE' | 'SUSPENDED' | 'ARCHIVED' | string;
   environment: 'TEST' | 'LIVE' | string;
-  tier?: string;
-  limits?: PlanLimits;
+  organizationSector?: 'SCHOOL' | 'HOSPITAL' | 'HOTEL' | 'PHARMACY' | 'COMPANY' | string | null;
   createdAt?: string;
+  updatedAt?: string;
   [key: string]: unknown;
 }
 
@@ -381,12 +383,19 @@ export interface UsageSummaryQuery {
 }
 
 export interface UsageSummary {
-  period?: string;
+  period: string;
   totalRequests: number;
-  successfulRequests: number;
-  failedRequests: number;
-  rateLimitHits?: number;
-  byEndpoint?: Record<string, number>;
+  successCount: number;
+  clientErrorCount: number;
+  serverErrorCount: number;
+  avgLatencyMs: number;
+  quota: {
+    limit: number | null;
+    used: number;
+    remaining: number | null;
+    unlimited: boolean;
+  };
+  endpoints: Record<string, number>;
   [key: string]: unknown;
 }
 
@@ -515,6 +524,11 @@ export interface SchoolClassItem {
   capacity?: number;
   studentCount?: number;
   room?: string;
+}
+
+export interface ListSchoolClassesQuery {
+  page?: number;
+  limit?: number;
 }
 
 export interface CreateSchoolClassParams {

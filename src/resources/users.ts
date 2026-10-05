@@ -1,5 +1,5 @@
 import { HttpClient } from '../http/client.js';
-import { CreateUserParams, ListUsersQuery, RequestOptions, User } from '../types';
+import { CreateUserParams, ListUsersQuery, PaginatedResult, RequestOptions, User } from '../types';
 
 export class UsersResource {
   constructor(private readonly http: HttpClient) {}
@@ -23,8 +23,8 @@ export class UsersResource {
     organizationId: string,
     query?: ListUsersQuery,
     options?: RequestOptions
-  ): Promise<User[]> {
-    return this.http.get<User[]>(`/organizations/${organizationId}/users`, {
+  ): Promise<PaginatedResult<User>> {
+    return this.http.get<PaginatedResult<User>>(`/organizations/${organizationId}/users`, {
       ...options,
       query: {
         role: query?.role,
