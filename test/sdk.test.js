@@ -1049,3 +1049,35 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
     });
   });
 });
+
+test('Marketplace installation tokens (nxi_)', async (t) => {
+  await t.test('are accepted, treated as live, and flagged', () => {
+    const client = new Nexora({ apiKey: 'nxi_' + 'a'.repeat(64) });
+    assert.equal(client.isInstallationToken, true);
+    assert.equal(client.environment, 'live');
+    assert.equal(new Nexora({ apiKey: 'nx_live_abc' }).isInstallationToken, false);
+  });
+
+  await t.test('reject an explicit organizationId (the token is bound to one organization)', () => {
+    assert.throws(() => new Nexora({ apiKey: 'nxi_' + 'a'.repeat(64), organizationId: 'org_1' }), (err) => err.code === 'ORGANIZATION_ID_NOT_ALLOWED');
+  });
+
+  await t.test('still reject unknown prefixes', () => {
+    assert.throws(() => new Nexora({ apiKey: 'sk_live_abc' }), (err) => err.code === 'INVALID_API_KEY_FORMAT');
+  });
+
+  await t.test('never send X-Organization-Id, even per request', async () => {
+    let seen;
+    const server = http.createServer((req, res) => { seen = req.headers; res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ data: [], pagination: { page: 1, limit: 20, total: 0, totalPages: 0 } })); });
+    await new Promise((r) => server.listen(0, r));
+    try {
+      const client = new Nexora({ apiKey: 'nxi_' + 'b'.repeat(64), baseUrl: `http://127.0.0.1:${server.address().port}` });
+      await client.students.list({}, { organizationId: 'org_attacker' });
+      assert.equal(seen['x-organization-id'], undefined);
+      assert.equal(seen.authorization, 'Bearer nxi_' + 'b'.repeat(64));
+      const keyClient = new Nexora({ apiKey: 'nx_test_abc', baseUrl: `http://127.0.0.1:${server.address().port}`, organizationId: 'org_1' });
+      await keyClient.students.list({});
+      assert.equal(seen['x-organization-id'], 'org_1'); // API-key behaviour unchanged
+    } finally { server.close(); }
+  });
+});

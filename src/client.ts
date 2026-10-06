@@ -19,6 +19,8 @@ import { Environment, NexoraClientOptions } from './types';
 
 export class Nexora {
   public readonly apiKey: string;
+  /** True when authenticated as a Marketplace app installation (organization-scoped, permission-granted). */
+  public readonly isInstallationToken: boolean;
   public readonly environment: Environment;
   public readonly baseUrl: string;
 
@@ -64,16 +66,27 @@ export class Nexora {
     }
 
     const key = options.apiKey.trim();
-    if (!key.startsWith('nx_test_') && !key.startsWith('nx_live_')) {
+    // Marketplace apps authenticate with an installation token (nxi_…) issued to one organization when
+    // an admin installs the app. It is a different credential from a project API key (nx_test_/nx_live_).
+    const isInstallationToken = key.startsWith('nxi_');
+    if (!isInstallationToken && !key.startsWith('nx_test_') && !key.startsWith('nx_live_')) {
       throw new NexoraError({
-        message: "Invalid API key prefix. Expected 'nx_test_' for sandbox or 'nx_live_' for live.",
+        message: "Invalid API key prefix. Expected 'nx_test_' for sandbox, 'nx_live_' for live, or 'nxi_' for a Marketplace installation token.",
         code: 'INVALID_API_KEY_FORMAT',
+        status: 400,
+      });
+    }
+    if (isInstallationToken && options.organizationId) {
+      throw new NexoraError({
+        message: 'An installation token is bound to the organization that installed the app; do not pass organizationId.',
+        code: 'ORGANIZATION_ID_NOT_ALLOWED',
         status: 400,
       });
     }
 
     this.apiKey = key;
-    const inferredEnvironment: Environment = key.startsWith('nx_live_') ? 'live' : 'sandbox';
+    this.isInstallationToken = isInstallationToken;
+    const inferredEnvironment: Environment = key.startsWith('nx_test_') ? 'sandbox' : 'live';
     if (options.environment) {
       const requestedEnvironment = String(options.environment).toLowerCase();
       const normalizedEnvironment = requestedEnvironment === 'test'
