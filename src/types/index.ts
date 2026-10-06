@@ -793,3 +793,51 @@ export interface PayrollRunItem {
   status: string;
   createdAt: string;
 }
+
+
+export interface TeacherItem {
+  id: string;
+  teacherId?: string;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  gender?: string;
+  qualification?: string;
+  specialization?: string[];
+}
+
+export interface ResultItem {
+  id: string;
+  studentId: string;
+  studentName: string;
+  admissionNumber: string;
+  class: string;
+  academicSession: string;
+  term: string;
+  subjects: unknown[];
+  totalMarks: number;
+  average: number;
+  position: string;
+  overallGrade: string;
+  promotionStatus: string;
+}
+
+export interface SchoolPaymentItem {
+  id: string;
+  studentId: string;
+  academicSession: string;
+  term: string;
+  amount: number;
+  currency: string;
+  reference: string;
+  gateway: string;
+  status: string;
+  paidAt?: string;
+  receiptNumber?: string;
+  createdAt: string;
+}
+
+export interface ListTeachersQuery { page?: number; limit?: number }
+export interface ListResultsQuery { page?: number; limit?: number; academicSession?: string; term?: string; studentId?: string }
+export interface ListSchoolPaymentsQuery { page?: number; limit?: number; status?: string; academicSession?: string; term?: string }

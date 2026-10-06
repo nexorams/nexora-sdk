@@ -4,7 +4,13 @@ import {
   CreateSchoolClassParams,
   CreateStudentParams,
   ListAttendanceQuery,
+  ListResultsQuery,
   ListSchoolClassesQuery,
+  ListSchoolPaymentsQuery,
+  ListTeachersQuery,
+  ResultItem,
+  SchoolPaymentItem,
+  TeacherItem,
   ListStudentsQuery,
   PaginatedResult,
   RecordAttendanceParams,
@@ -29,7 +35,59 @@ export class SchoolResource {
     create: (params: CreateSchoolClassParams, options?: RequestOptions) => Promise<SchoolClassItem>;
   };
 
+  public readonly teachers: {
+    list: (query?: ListTeachersQuery, options?: RequestOptions) => Promise<PaginatedResult<TeacherItem>>;
+  };
+
+  /** Published results only. Requires the `results:read` scope. */
+  public readonly results: {
+    list: (query?: ListResultsQuery, options?: RequestOptions) => Promise<PaginatedResult<ResultItem>>;
+  };
+
+  /** Requires the `payments:read` scope. */
+  public readonly payments: {
+    list: (query?: ListSchoolPaymentsQuery, options?: RequestOptions) => Promise<PaginatedResult<SchoolPaymentItem>>;
+  };
+
   constructor(private readonly http: HttpClient) {
+    this.teachers = {
+      list: (query?: ListTeachersQuery, options?: RequestOptions) =>
+        this.http.get<PaginatedResult<TeacherItem>>('/school/teachers', {
+          ...options,
+          query: { page: query?.page, limit: query?.limit, ...(options?.query || {}) },
+        }),
+    };
+
+    this.results = {
+      list: (query?: ListResultsQuery, options?: RequestOptions) =>
+        this.http.get<PaginatedResult<ResultItem>>('/school/results', {
+          ...options,
+          query: {
+            page: query?.page,
+            limit: query?.limit,
+            academicSession: query?.academicSession,
+            term: query?.term,
+            studentId: query?.studentId,
+            ...(options?.query || {}),
+          },
+        }),
+    };
+
+    this.payments = {
+      list: (query?: ListSchoolPaymentsQuery, options?: RequestOptions) =>
+        this.http.get<PaginatedResult<SchoolPaymentItem>>('/school/payments', {
+          ...options,
+          query: {
+            page: query?.page,
+            limit: query?.limit,
+            status: query?.status,
+            academicSession: query?.academicSession,
+            term: query?.term,
+            ...(options?.query || {}),
+          },
+        }),
+    };
+
     this.students = {
       list: (query?: ListStudentsQuery, options?: RequestOptions) =>
         this.http.get<PaginatedResult<StudentItem>>('/school/students', {
