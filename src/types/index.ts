@@ -24,6 +24,8 @@ export interface NexoraClientOptions {
   timeoutMs?: number;
   apiVersion?: string;
   organizationId?: string;
+  /** Default Nexora Cloud application for `nexora.cloud.entities.*` and `nexora.resources()`. */
+  applicationId?: string;
 }
 
 export interface RequestOptions {
@@ -792,4 +794,60 @@ export interface PayrollRunItem {
   totalNet?: number;
   status: string;
   createdAt: string;
+}
+
+// ── Nexora Cloud (generic, schema-driven resources) ─────────────────────────
+export interface CloudRecord<T = Record<string, unknown>> {
+  id: string;
+  entity: string;
+  data: T;
+  relations: Record<string, string[]>;
+  status: 'ACTIVE' | 'ARCHIVED';
+  schemaVersion: number;
+  createdBy: string | null;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CloudRecordInput<T = Record<string, unknown>> {
+  data?: T;
+  /** Relation field key -> record id (to-one) or list of record ids (to-many). */
+  relations?: Record<string, string | string[]>;
+}
+
+export interface CloudListQuery {
+  page?: number;
+  limit?: number;
+  status?: 'ACTIVE' | 'ARCHIVED';
+}
+
+export interface CloudSchemaField {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  unique: boolean;
+  options?: { value: string; label: string }[];
+  currency?: string;
+  relation?: { targetEntityKey: string; kind: string; maxRefs?: number };
+  validation?: Record<string, number>;
+}
+
+export interface CloudSchema {
+  applicationId: string;
+  organizationId: string;
+  environment: 'TEST' | 'LIVE';
+  version: string | null;
+  entities: { key: string; name: string; schemaVersion: number; fields: CloudSchemaField[]; actions: ('read' | 'create' | 'update' | 'archive')[] }[];
+}
+
+export interface CloudInstallationItem {
+  organizationId: string;
+  organizationName: string;
+  applicationId: string;
+  applicationName: string;
+  version: string | null;
+  grants: string[];
+  sandbox: boolean;
 }

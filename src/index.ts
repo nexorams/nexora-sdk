@@ -18,6 +18,7 @@ export { ModulesResource } from './resources/modules.js';
 export { PlansResource } from './resources/plans.js';
 export { SubscriptionsResource } from './resources/subscriptions.js';
 export { DomainsResource } from './resources/domains.js';
+export { CloudResource, CloudApplicationClient, CloudEntityClient } from './resources/cloud.js';
 export { WebhooksResource } from './resources/webhooks.js';
 export { WebhookDeliveriesResource } from './resources/deliveries.js';
 export { UsageResource } from './resources/usage.js';
