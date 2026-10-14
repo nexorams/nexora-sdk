@@ -296,6 +296,31 @@ app.post('/webhooks/nexora', express.raw({ type: 'application/json' }), (req, re
 
 ---
 
+## Nexora Cloud (custom management systems)
+
+Organizations install Nexora Cloud applications and explicitly grant your developer project access to specific
+entities and actions. Your API key needs the `cloud:read`, `cloud:write` and/or `cloud:delete` scopes; the
+effective permissions are the intersection of the organization's grants and your key's scopes.
+
+```ts
+const nexora = new Nexora({ apiKey: process.env.NEXORA_API_KEY!, organizationId: 'org_...', applicationId: '...' });
+
+const schema = await nexora.cloud.schema();                       // entities and fields you may use
+const page = await nexora.cloud.entities.members.list({ limit: 20 });
+for await (const member of nexora.resources('members').listAll()) { /* ... */ }
+
+const created = await nexora.resources('members').create(
+  { data: { first_name: 'Ada', email: 'ada@example.com' } },
+  { idempotencyKey: 'signup-123' },
+);
+await nexora.resources('members').update(created.id, { data: { plan: 'gold' } });
+await nexora.resources('members').archive(created.id);            // soft delete; data is never hard-deleted
+
+nexora.resources('members').events().created;                     // 'cloud.members.created' (webhook event)
+```
+
+Sensitive fields are never returned or writable through the API. TEST keys can use your own application's sandbox.
+
 ## Error Handling
 
 All API errors throw typed `NexoraError` instances containing HTTP status codes, structured error codes, and correlation request IDs for support troubleshooting.

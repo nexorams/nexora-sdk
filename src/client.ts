@@ -1,5 +1,6 @@
 import { NexoraError } from './errors/NexoraError.js';
 import { HttpClient } from './http/client.js';
+import { CloudEntityClient, CloudResource } from './resources/cloud.js';
 import { CompanyResource } from './resources/company.js';
 import { WebhookDeliveriesResource } from './resources/deliveries.js';
 import { DomainsResource } from './resources/domains.js';
@@ -34,6 +35,7 @@ export class Nexora {
   public readonly webhooks: WebhooksResource;
   public readonly deliveries: WebhookDeliveriesResource;
   public readonly usage: UsageResource;
+  public readonly cloud: CloudResource;
 
   // Sector Domain Resources
   public readonly school: SchoolResource;
@@ -135,6 +137,7 @@ export class Nexora {
     this.webhooks = new WebhooksResource(this.http);
     this.deliveries = new WebhookDeliveriesResource(this.http);
     this.usage = new UsageResource(this.http);
+    this.cloud = new CloudResource(this.http, options.applicationId);
 
     // Sector Domain Resources
     this.school = new SchoolResource(this.http);
@@ -152,6 +155,14 @@ export class Nexora {
     this.products = this.pharmacy.products;
     this.employees = this.company.employees;
     this.payroll = this.company.payroll;
+  }
+
+  /**
+   * Generic dynamic resource: `nexora.resources('members').list()` on the default Cloud application
+   * (`applicationId` client option) or an explicit one.
+   */
+  public resources<T extends Record<string, unknown> = Record<string, unknown>>(entityKey: string, applicationId?: string): CloudEntityClient<T> {
+    return this.cloud.entity<T>(entityKey, applicationId);
   }
 
   /**
