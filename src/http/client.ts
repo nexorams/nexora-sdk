@@ -56,7 +56,8 @@ export class HttpClient {
       headers['Idempotency-Key'] = options.idempotencyKey.trim();
     }
 
-    const orgId = options?.organizationId || this.defaultOrganizationId;
+    // Installation tokens carry their organization; the server rejects a conflicting header, so never send one.
+    const orgId = this.apiKey.startsWith('nxi_') ? undefined : (options?.organizationId || this.defaultOrganizationId);
     if (orgId) {
       headers['X-Organization-Id'] = orgId.trim();
     }
