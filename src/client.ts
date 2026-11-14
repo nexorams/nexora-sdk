@@ -48,6 +48,8 @@ export class Nexora {
   // business logic; each points at the corresponding sector implementation.
   public readonly students: SchoolResource['students'];
   public readonly attendance: SchoolResource['attendance'];
+  /** Shortcut for `school.parents` (Parent Portal accounts and parent-student links). */
+  public readonly parents: SchoolResource['parents'];
   public readonly patients: HospitalResource['patients'];
   public readonly appointments: HospitalResource['appointments'];
   public readonly rooms: HotelResource['rooms'];
@@ -59,15 +61,23 @@ export class Nexora {
   private readonly http: HttpClient;
 
   constructor(options: NexoraClientOptions) {
-    if (!options || !options.apiKey) {
+    const dynamic = !!(options && typeof options.getAccessToken === 'function');
+    if (!options || (!options.apiKey && !options.accessToken && !dynamic)) {
       throw new NexoraError({
-        message: 'API key is required to initialize the Nexora SDK.',
+        message: 'An API key, installation access token, or getAccessToken function is required to initialize the Nexora SDK.',
         code: 'MISSING_API_KEY',
         status: 400,
       });
     }
+    if ([options.apiKey, options.accessToken, dynamic ? 'x' : undefined].filter(Boolean).length > 1) {
+      throw new NexoraError({ message: 'Provide only one of apiKey, accessToken or getAccessToken.', code: 'CONFLICTING_CREDENTIALS', status: 400 });
+    }
+    if (options.accessToken && !String(options.accessToken).trim().startsWith('nxi_')) {
+      throw new NexoraError({ message: "accessToken must be a Marketplace installation access token (starts with 'nxi_').", code: 'INVALID_API_KEY_FORMAT', status: 400 });
+    }
 
-    const key = options.apiKey.trim();
+    // A dynamic token source is for Marketplace apps: the token (nxi_…) is fetched, and renewed, per request.
+    const key = dynamic ? 'nxi_dynamic' : String(options.apiKey || options.accessToken).trim();
     // Marketplace apps authenticate with an installation token (nxi_…) issued to one organization when
     // an admin installs the app. It is a different credential from a project API key (nx_test_/nx_live_).
     const isInstallationToken = key.startsWith('nxi_');
@@ -86,7 +96,7 @@ export class Nexora {
       });
     }
 
-    this.apiKey = key;
+    this.apiKey = dynamic ? '' : key;          // never expose or store the live token on the client when it is provided on demand
     this.isInstallationToken = isInstallationToken;
     const inferredEnvironment: Environment = key.startsWith('nx_test_') ? 'sandbox' : 'live';
     if (options.environment) {
@@ -121,10 +131,11 @@ export class Nexora {
     this.baseUrl = options.baseUrl ? options.baseUrl.replace(/\/+$/, '') : defaultBaseUrl;
 
     this.http = new HttpClient(
-      this.apiKey,
+      dynamic ? options.getAccessToken! : this.apiKey,
       this.baseUrl,
       options.timeoutMs || 30000,
-      options.organizationId
+      options.organizationId,
+      options.retry
     );
 
     this.project = new ProjectResource(this.http);
@@ -148,6 +159,7 @@ export class Nexora {
 
     this.students = this.school.students;
     this.attendance = this.school.attendance;
+    this.parents = this.school.parents;
     this.patients = this.hospital.patients;
     this.appointments = this.hospital.appointments;
     this.rooms = this.hotel.rooms;

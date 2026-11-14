@@ -117,7 +117,8 @@ export class WebhooksResource {
     const payloadString = typeof payload === 'string' ? payload : payload.toString('utf8');
 
     let timestamp: number | null = null;
-    let signatureHash: string | null = null;
+    // A header may carry several signatures (during a secret rotation grace window); the delivery is authentic if ANY of them matches.
+    const signatureHashes: string[] = [];
 
     if (header.includes('t=') && header.includes('v1=')) {
       const parts = header.split(',');
@@ -126,16 +127,17 @@ export class WebhooksResource {
         if (k === 't') {
           timestamp = parseInt(v, 10);
         } else if (k === 'v1') {
-          signatureHash = v;
+          signatureHashes.push(v);
         }
       }
     } else if (header.startsWith('v1=')) {
-      signatureHash = header.slice(3);
+      signatureHashes.push(header.slice(3));
     } else {
-      signatureHash = header.trim();
+      signatureHashes.push(header.trim());
     }
 
-    if (!signatureHash || !/^[a-fA-F0-9]{64}$/.test(signatureHash)) {
+    const candidates = signatureHashes.filter((h) => !!h && /^[a-fA-F0-9]{64}$/.test(h));
+    if (candidates.length === 0) {
       return false;
     }
 
@@ -162,24 +164,18 @@ export class WebhooksResource {
     const expectedHash = hmac.digest('hex');
 
     try {
-      const actualBuf = Buffer.from(signatureHash, 'hex');
       const expectedBuf = Buffer.from(expectedHash, 'hex');
-      if (actualBuf.length === expectedBuf.length && crypto.timingSafeEqual(actualBuf, expectedBuf)) {
-        return true;
+      const directBuf = timestamp === null && toleranceSeconds === 0 ? Buffer.from(crypto.createHmac('sha256', secret).update(payloadString).digest('hex'), 'hex') : null;
+      let ok = false;
+      for (const candidate of candidates) {
+        const actualBuf = Buffer.from(candidate, 'hex');
+        if (actualBuf.length === expectedBuf.length && crypto.timingSafeEqual(actualBuf, expectedBuf)) ok = true;
+        if (directBuf && actualBuf.length === directBuf.length && crypto.timingSafeEqual(actualBuf, directBuf)) ok = true;
       }
-
-      if (timestamp === null && toleranceSeconds === 0) {
-        const directExpectedHash = crypto.createHmac('sha256', secret).update(payloadString).digest('hex');
-        const directBuf = Buffer.from(directExpectedHash, 'hex');
-        if (actualBuf.length === directBuf.length && crypto.timingSafeEqual(actualBuf, directBuf)) {
-          return true;
-        }
-      }
+      return ok;
     } catch {
       return false;
     }
-
-    return false;
   }
 
   /**

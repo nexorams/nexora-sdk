@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-21
+
+Backwards compatible: nothing is renamed.
+
+### Added
+- Parent Portal for schools: `client.school.parents` (also `client.parents`) with `list`, `create` and `links.list` / `links.create` / `links.revoke`, backed by `GET|POST /school/parents`, `GET|POST /school/parents/links` and `POST /school/parents/links/revoke`. New scopes `parents:read` and `parents:write`; Marketplace permissions `school.parents.read` / `school.parents.write`.
+- Types `ParentItem`, `CreateParentParams`, `CreateParentResult`, `ParentLinkItem`, `ParentStudentSelection`, `ListParentsQuery`, `ListParentLinksQuery`, `LinkParentStudentParams`, `RevokeParentLinkParams`.
+- Webhook events `school.parent.created`, `school.parent.linked`, `school.parent.unlinked` (and the same as Marketplace app events).
+
+### Notes
+- Creating a parent never returns a password: Nexora e-mails the parent a one-time activation link. A known e-mail returns `409 PARENT_EXISTS` with `error.existingParent`; pass `reuseExisting: true` to link the children to that account instead.
+
+## [2.3.0] - 2026-10-17
+
+Backwards compatible: nothing is renamed.
+
+### Added
+- `NexoraError.alias` and `NexoraError.is(name)`. When the server has a specification name for the same condition (`SCOPE_NOT_GRANTED` for `PERMISSION_NOT_GRANTED`, `TOKEN_EXPIRED`, `SUBSCRIPTION_REQUIRED`, `APP_NOT_APPROVED`, `INSTALLATION_DISABLED`, `APP_NOT_INSTALLED`, `INVALID_AUTHORIZATION_CODE`, `AUTHORIZATION_CODE_EXPIRED`) it sends it as `error.alias` next to the unchanged `error.code`; `error.is('SCOPE_NOT_GRANTED')` matches either.
+- `MarketplaceAuth.introspect(token)`: ask Nexora from your server whether an access token is still live and read its verified claims (`TokenClaims`, `TokenIntrospection`). `TokenSet.claims` carries the claims returned with the tokens (`userId` is present when the user opened the app from Nexora).
+- `MarketplaceAuth.revoke(token)`: end a refresh token (the whole connection) or an access token from your server, for example when a user disconnects.
+- New error codes `USER_LACKS_ACCESS` (a token issued when a user opened the app is limited by that user's own role) and `ENVIRONMENT_MISMATCH` (a sandbox token used with a live installation or the reverse).
+- New error code `USER_ACCESS_REVOKED`: a token issued when a user opened the app is refused once that user is no longer active in the organization.
+
+## [2.2.0] - 2026-10-16
+
+Backwards compatible: every 2.1 call behaves as before. Network requests now retry by default (see below) — set `retry: { maxRetries: 0 }` to turn that off.
+
+### Added
+- **Automatic retries.** Reads (and any write that carries an `Idempotency-Key`) are retried after a network error, a timeout, or a 502/503/504, with exponential backoff and jitter. A 429 is retried for every method (the request was refused before it ran) and honours `Retry-After`; a longer wait than `maxRetryAfterMs` (default 30 s) is returned to you as the error instead of being slept through. Writes without an idempotency key are **never** retried after an ambiguous failure, because the server may already have performed them. New client option `retry` (`maxRetries` 2, `baseDelayMs` 500, `maxDelayMs` 8000, `maxRetryAfterMs` 30000) and per-call `maxRetries`. `NexoraError.retryAfter` carries the server's `Retry-After` seconds.
+- **Marketplace apps.** `new Nexora({ accessToken })` and `new Nexora({ getAccessToken })` for installed apps (short-lived `nxi_…` tokens). With `getAccessToken` the token is asked for on every request, and an `INSTALLATION_TOKEN_EXPIRED` answer triggers exactly one fresh request through the provider. `MarketplaceAuth` (code exchange and refresh at the token endpoint), `TokenManager` (stores tokens, refreshes ahead of expiry, one refresh at a time because a refresh token works once, `REAUTHORIZATION_REQUIRED` when the connection was ended) and `MemoryTokenStore`. `MarketplaceAuth` refuses to run inside a browser page (`CLIENT_SECRET_IN_BROWSER`).
+- `constructWebhookEvent(rawBody, headers, secret)`: verifies the signature and age, checks the event-id header, and returns the parsed event.
+
+### Changed
+- `apiKey` is optional in the type when `accessToken` or `getAccessToken` is given; supplying more than one kind of credential throws `CONFLICTING_CREDENTIALS`.
+
 ## [2.1.0] - 2026-10-14
 
 ### Added

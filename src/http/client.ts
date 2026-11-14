@@ -1,15 +1,21 @@
 import { NexoraError } from '../errors/NexoraError.js';
-import type { RequestOptions } from '../types/index.js';
+import type { RequestOptions, RetryOptions } from '../types/index.js';
+import { parseRetryAfter } from './retryAfter.js';
 import { USER_AGENT } from '../version.js';
 
+type TokenSource = string | ((options: { forceRefresh: boolean }) => string | Promise<string>);
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 export class HttpClient {
-  private readonly apiKey: string;
+  private readonly tokenSource: TokenSource;
+  private readonly retry: Required<RetryOptions>;
   private readonly baseUrl: string;
   private readonly defaultTimeoutMs: number;
   public defaultOrganizationId?: string;
 
-  constructor(apiKey: string, baseUrl: string, timeoutMs: number = 30000, defaultOrganizationId?: string) {
-    this.apiKey = apiKey;
+  constructor(apiKey: TokenSource, baseUrl: string, timeoutMs: number = 30000, defaultOrganizationId?: string, retry: RetryOptions = {}) {
+    this.tokenSource = apiKey;
+    this.retry = { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 8000, maxRetryAfterMs: 30000, ...Object.fromEntries(Object.entries(retry).filter(([, v]) => v !== undefined)) } as Required<RetryOptions>;
     this.baseUrl = baseUrl.replace(/\/+$/, '');
     this.defaultTimeoutMs = timeoutMs;
     this.defaultOrganizationId = defaultOrganizationId;
@@ -24,6 +30,60 @@ export class HttpClient {
     method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
     body?: any,
     options?: RequestOptions
+  ): Promise<T> {
+    const maxRetries = options?.maxRetries ?? this.retry.maxRetries;
+    // A retry must never repeat a write the server may already have performed: only reads, and writes that carry an Idempotency-Key, are retried
+    // after a network failure, a timeout or a 502/503/504. A 429 is always safe (the request was refused before it ran).
+    const replaySafe = method === 'GET' || !!options?.idempotencyKey?.trim();
+    let attempt = 0;
+    let refreshedToken = false;
+    for (;;) {
+      try {
+        return await this.attemptRequest<T>(path, method, body, options, refreshedToken);
+      } catch (err: any) {
+        if (!(err instanceof NexoraError)) throw err;
+        // an expired short-lived access token: ask the token provider for a fresh one and try once more (refused before it ran, so safe for any method)
+        if (err.code === 'INSTALLATION_TOKEN_EXPIRED' && typeof this.tokenSource === 'function' && !refreshedToken) { refreshedToken = true; continue; }
+        if (attempt >= maxRetries) throw err;
+        const rateLimited = err.status === 429;
+        const transient = err.code === 'NETWORK_ERROR' || err.code === 'REQUEST_TIMEOUT' || err.status === 502 || err.status === 503 || err.status === 504;
+        if (!(rateLimited || (transient && replaySafe))) throw err;
+        const wait = this.backoff(attempt, err.retryAfter);
+        if (wait === null) throw err;                         // the server asked for a wait longer than we are willing to block for
+        attempt += 1;
+        await sleep(wait);
+      }
+    }
+  }
+
+  /** Milliseconds to wait before retry number attempt+1, or null when Retry-After is longer than maxRetryAfterMs. */
+  private backoff(attempt: number, retryAfterSeconds?: number): number | null {
+    if (retryAfterSeconds !== undefined) {
+      const ms = retryAfterSeconds * 1000;
+      return ms > this.retry.maxRetryAfterMs ? null : ms + Math.floor(Math.random() * 250);
+    }
+    const ceiling = Math.min(this.retry.maxDelayMs, this.retry.baseDelayMs * 2 ** attempt);
+    return Math.floor(ceiling / 2 + Math.random() * (ceiling / 2));
+  }
+
+  private async resolveToken(forceRefresh: boolean): Promise<string> {
+    if (typeof this.tokenSource === 'string') return this.tokenSource;
+    try {
+      const token = await this.tokenSource({ forceRefresh });
+      if (typeof token !== 'string' || !token) throw new Error('empty token');
+      return token;
+    } catch (e: any) {
+      if (e instanceof NexoraError) throw e;
+      throw new NexoraError({ message: `The access token provider failed: ${e && e.message}`, code: 'TOKEN_PROVIDER_FAILED', status: 401 });
+    }
+  }
+
+  private async attemptRequest<T>(
+    path: string,
+    method: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+    body: any,
+    options: RequestOptions | undefined,
+    forceRefresh: boolean
   ): Promise<T> {
     const cleanPath = path.startsWith('/') ? path : `/${path}`;
     const [pathOnly, rawQuery] = cleanPath.split('?');
@@ -44,8 +104,9 @@ export class HttpClient {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+    const token = await this.resolveToken(forceRefresh);
     const headers: Record<string, string> = {
-      'Authorization': `Bearer ${this.apiKey}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       'User-Agent': USER_AGENT,
@@ -57,7 +118,7 @@ export class HttpClient {
     }
 
     // Installation tokens carry their organization; the server rejects a conflicting header, so never send one.
-    const orgId = this.apiKey.startsWith('nxi_') ? undefined : (options?.organizationId || this.defaultOrganizationId);
+    const orgId = token.startsWith('nxi_') ? undefined : (options?.organizationId || this.defaultOrganizationId);
     if (orgId) {
       headers['X-Organization-Id'] = orgId.trim();
     }
@@ -99,9 +160,11 @@ export class HttpClient {
         throw new NexoraError({
           message,
           code,
+          alias: typeof errPayload.alias === 'string' ? errPayload.alias : undefined,
           status: response.status,
           requestId,
           details: errPayload.details || responseData,
+          retryAfter: parseRetryAfter(response.headers.get('retry-after')),
         });
       }
 

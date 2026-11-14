@@ -1,6 +1,14 @@
 import { HttpClient } from '../http/client.js';
 import {
   AttendanceRecordItem,
+  CreateParentParams,
+  CreateParentResult,
+  LinkParentStudentParams,
+  ListParentLinksQuery,
+  ListParentsQuery,
+  ParentItem,
+  ParentLinkItem,
+  RevokeParentLinkParams,
   CreateSchoolClassParams,
   CreateStudentParams,
   ListAttendanceQuery,
@@ -47,6 +55,20 @@ export class SchoolResource {
   /** Requires the `payments:read` scope. */
   public readonly payments: {
     list: (query?: ListSchoolPaymentsQuery, options?: RequestOptions) => Promise<PaginatedResult<SchoolPaymentItem>>;
+  };
+
+  /**
+   * Parent Portal: parent/guardian accounts and their links to students. Requires `parents:read` / `parents:write`.
+   * Creating a parent never returns a password — Nexora e-mails the activation link.
+   */
+  public readonly parents: {
+    list: (query?: ListParentsQuery, options?: RequestOptions) => Promise<PaginatedResult<ParentItem>>;
+    create: (params: CreateParentParams, options?: RequestOptions) => Promise<CreateParentResult>;
+    links: {
+      list: (query?: ListParentLinksQuery, options?: RequestOptions) => Promise<PaginatedResult<ParentLinkItem>>;
+      create: (params: LinkParentStudentParams, options?: RequestOptions) => Promise<ParentLinkItem>;
+      revoke: (params: RevokeParentLinkParams, options?: RequestOptions) => Promise<{ id: string; status: 'REVOKED'; revokedAt: string }>;
+    };
   };
 
   constructor(private readonly http: HttpClient) {
@@ -119,6 +141,27 @@ export class SchoolResource {
         }),
       record: (params: RecordAttendanceParams, options?: RequestOptions) =>
         this.http.post<any>('/school/attendance', params, options),
+    };
+
+    this.parents = {
+      list: (query?: ListParentsQuery, options?: RequestOptions) =>
+        this.http.get<PaginatedResult<ParentItem>>('/school/parents', {
+          ...options,
+          query: { page: query?.page, limit: query?.limit, search: query?.search, status: query?.status, activation: query?.activation, sort: query?.sort, ...(options?.query || {}) },
+        }),
+      create: (params: CreateParentParams, options?: RequestOptions) =>
+        this.http.post<CreateParentResult>('/school/parents', params, options),
+      links: {
+        list: (query?: ListParentLinksQuery, options?: RequestOptions) =>
+          this.http.get<PaginatedResult<ParentLinkItem>>('/school/parents/links', {
+            ...options,
+            query: { page: query?.page, limit: query?.limit, parentId: query?.parentId, studentId: query?.studentId, status: query?.status, ...(options?.query || {}) },
+          }),
+        create: (params: LinkParentStudentParams, options?: RequestOptions) =>
+          this.http.post<ParentLinkItem>('/school/parents/links', params, options),
+        revoke: (params: RevokeParentLinkParams, options?: RequestOptions) =>
+          this.http.post<{ id: string; status: 'REVOKED'; revokedAt: string }>('/school/parents/links/revoke', params, options),
+      },
     };
 
     this.classes = {

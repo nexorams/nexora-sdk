@@ -17,8 +17,26 @@ export type OrganizationType =
   | 'pharmacy'
   | 'enterprise';
 
+/** Automatic retry behaviour. Unsafe writes are only retried when they carry an Idempotency-Key. */
+export interface RetryOptions {
+  /** Retries after the first attempt (default 2; 0 turns retries off). */
+  maxRetries?: number;
+  /** First backoff step in ms (default 500); doubles each time with jitter. */
+  baseDelayMs?: number;
+  /** Longest single wait in ms (default 8000). */
+  maxDelayMs?: number;
+  /** Longest Retry-After the SDK will wait out in ms (default 30000); a longer one is returned to you as the error. */
+  maxRetryAfterMs?: number;
+}
+
 export interface NexoraClientOptions {
-  apiKey: string;
+  /** Project API key (nx_test_ / nx_live_) or Marketplace installation token (nxi_). Use `accessToken` / `getAccessToken` for installed apps. */
+  apiKey?: string;
+  /** Marketplace access token (nxi_…). Expires in 15 minutes; prefer `getAccessToken` so it is renewed for you. */
+  accessToken?: string;
+  /** Marketplace app: called before every request (and once more after an INSTALLATION_TOKEN_EXPIRED answer with `forceRefresh: true`). Use `TokenManager#getAccessToken`. */
+  getAccessToken?: (options: { forceRefresh: boolean }) => string | Promise<string>;
+  retry?: RetryOptions;
   environment?: 'sandbox' | 'live';
   baseUrl?: string;
   timeoutMs?: number;
@@ -30,6 +48,8 @@ export interface NexoraClientOptions {
 
 export interface RequestOptions {
   idempotencyKey?: string;
+  /** Override the client's retry count for this call (0 = never retry). */
+  maxRetries?: number;
   timeoutMs?: number;
   headers?: Record<string, string>;
   query?: Record<string, string | number | boolean | undefined | null>;
@@ -898,3 +918,73 @@ export interface SchoolPaymentItem {
 export interface ListTeachersQuery { page?: number; limit?: number }
 export interface ListResultsQuery { page?: number; limit?: number; academicSession?: string; term?: string; studentId?: string }
 export interface ListSchoolPaymentsQuery { page?: number; limit?: number; status?: string; academicSession?: string; term?: string }
+
+// ── Parent Portal (school) ────────────────────────────────────────────────────
+export type ParentRelationship = 'mother' | 'father' | 'guardian' | 'other';
+export type ParentActivation = 'pending' | 'activated' | 'expired';
+export interface ParentItem {
+  id: string;
+  /** Login ID the parent signs in with, e.g. BFA-PAR-0001. */
+  parentId: string;
+  firstName: string;
+  lastName: string;
+  middleName?: string;
+  email: string;
+  phone: string;
+  alternatePhone?: string;
+  address?: { street?: string; city?: string; state?: string; country?: string; zip?: string } | null;
+  gender?: string;
+  status: string;
+  activation: ParentActivation;
+  childrenCount: number;
+  lastLogin?: string | null;
+  createdAt: string;
+}
+export interface ParentStudentSelection {
+  /** Student id, Student ID or admission number of the same school. */
+  studentId: string;
+  relationship?: ParentRelationship;
+  isPrimaryGuardian?: boolean;
+  isEmergencyContact?: boolean;
+}
+export interface CreateParentParams {
+  firstName: string;
+  lastName: string;
+  middleName?: string;
+  /** The activation link is e-mailed here. Never a password. */
+  email: string;
+  phone: string;
+  alternatePhone?: string;
+  address?: { street?: string; city?: string; state?: string; country?: string };
+  gender?: 'male' | 'female' | 'other';
+  students?: ParentStudentSelection[];
+  /** When the e-mail already belongs to a parent of this school, link the students to that account instead of failing with PARENT_EXISTS. */
+  reuseExisting?: boolean;
+}
+export interface CreateParentResult extends ParentItem {
+  created: boolean;
+  links: { created: number; skipped: { studentId: string; reason: string; linkId?: string }[] };
+  invitation: { sent: boolean; expiresAt: string } | null;
+}
+export interface ParentLinkItem {
+  id: string;
+  parentId: string;
+  studentId: string;
+  relationship: ParentRelationship;
+  isPrimaryGuardian: boolean;
+  isEmergencyContact: boolean;
+  status: 'ACTIVE' | 'REVOKED';
+  createdAt: string;
+  revokedAt?: string | null;
+}
+export interface ListParentsQuery { page?: number; limit?: number; search?: string; status?: 'active' | 'disabled'; activation?: ParentActivation; sort?: string }
+export interface ListParentLinksQuery { page?: number; limit?: number; parentId?: string; studentId?: string; status?: 'ACTIVE' | 'REVOKED' }
+export interface LinkParentStudentParams { parentId: string; studentId: string; relationship?: ParentRelationship; isPrimaryGuardian?: boolean; isEmergencyContact?: boolean; notes?: string }
+/** Identify the link by `linkId`, or by `parentId` and `studentId` together. */
+export interface RevokeParentLinkParams {
+  linkId?: string;
+  parentId?: string;
+  /** Student id, Student ID or admission number. */
+  studentId?: string;
+  reason?: string;
+}

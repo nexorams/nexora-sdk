@@ -246,6 +246,39 @@ console.log('Verified:', verification.verified);
 
 ---
 
+## Parent Portal (schools)
+
+Create parent/guardian accounts, link them to students and listen for link changes. Requires the `parents:read` / `parents:write` scopes (Marketplace apps: `school.parents.read` / `school.parents.write`).
+
+```ts
+// Create a parent and link two children; Nexora e-mails the activation link (no password is returned)
+const parent = await nexora.school.parents.create({
+  firstName: 'Bola', lastName: 'Adeyemi', email: 'bola@example.com', phone: '+2348011112222',
+  students: [
+    { studentId: 'BFA-STU-0001', relationship: 'father', isPrimaryGuardian: true },
+    { studentId: 'BFA-STU-0002', relationship: 'father' },
+  ],
+});
+console.log(parent.parentId, parent.activation); // 'BFA-PAR-0001' 'pending'
+
+// Later: link another child, list links, revoke one
+await nexora.parents.links.create({ parentId: parent.id, studentId: 'BFA-STU-0003', relationship: 'guardian' });
+const links = await nexora.parents.links.list({ parentId: parent.id });
+await nexora.parents.links.revoke({ linkId: links.data[0].id, reason: 'Custody change' });
+
+// A known e-mail answers 409 PARENT_EXISTS; link to the existing account instead
+try {
+  await nexora.school.parents.create({ firstName: 'Bola', lastName: 'Adeyemi', email: 'bola@example.com', phone: '+2348011112222', students: [{ studentId: 'BFA-STU-0004' }] });
+} catch (err) {
+  if (err instanceof NexoraError && err.code === 'PARENT_EXISTS') {
+    await nexora.school.parents.create({ firstName: 'Bola', lastName: 'Adeyemi', email: 'bola@example.com', phone: '+2348011112222', students: [{ studentId: 'BFA-STU-0004' }], reuseExisting: true });
+  }
+}
+```
+
+Webhook events: `school.parent.created`, `school.parent.linked`, `school.parent.unlinked`. Parents themselves use the Nexora web portal; the API never returns report cards or fee data under these scopes.
+
+
 ## Webhooks & Signature Verification
 
 Nexora dispatches cryptographically signed HMAC-SHA256 webhooks for real-time lifecycle events.
@@ -295,6 +328,39 @@ app.post('/webhooks/nexora', express.raw({ type: 'application/json' }), (req, re
 ```
 
 ---
+
+## Marketplace apps (installed in an organization)
+
+An app installed from the Nexora Marketplace authenticates with a **short-lived installation access token** (`nxi_…`, 15 minutes), not a project API key. It gets one by being *connected* by an organization administrator and then exchanging the one-time code on **your server**:
+
+```ts
+import { Nexora, MarketplaceAuth, TokenManager } from '@nexorams/sdk';
+
+// server-side only — the client secret and the refresh token never leave your server
+const auth = new MarketplaceAuth({ clientId: process.env.NEXORA_CLIENT_ID!, clientSecret: process.env.NEXORA_CLIENT_SECRET! });
+const tokens = new TokenManager(auth, myPersistentStore);        // implement load()/save(); MemoryTokenStore is for tests
+
+// 1. the redirect back to your app carries ?code=…&state=… (verify `state` first), then:
+await tokens.connect({ code, redirectUri: 'https://app.example.com/nexora/callback' });
+
+// 2. use the API; the token is renewed for you
+const nexora = new Nexora({ getAccessToken: (o) => tokens.getAccessToken(o) });
+const students = await nexora.students.list({ page: 1, limit: 20 });
+```
+
+- The installation decides what you can reach: the permissions the administrator approved, in that organization only. Never send an `organizationId`.
+- `TokenManager` refreshes before expiry and never runs two refreshes at once. If the connection was ended (uninstalled, revoked, token reuse) it throws `REAUTHORIZATION_REQUIRED`: ask the administrator to connect again.
+- **Browsers and front-end frameworks.** Never put the client secret, a refresh token or an access token in code that ships to the browser (anything prefixed `VITE_`, `NEXT_PUBLIC_`, `REACT_APP_`). The browser calls *your* backend; your backend calls Nexora.
+- **Webhooks.** Verify every delivery with the **raw** body, then de-duplicate on the event id (delivery is at-least-once):
+
+```ts
+import { constructWebhookEvent } from '@nexorams/sdk';
+const event = constructWebhookEvent(rawBody, req.headers, process.env.NEXORA_WEBHOOK_SECRET!);   // throws NexoraError INVALID_WEBHOOK_SIGNATURE
+```
+
+### Retries
+
+Reads, and writes that carry an `Idempotency-Key`, are retried automatically after network errors, timeouts and 502/503/504; any request answered with 429 waits for `Retry-After`. Writes without a key are not retried after an ambiguous failure. Tune with `new Nexora({ …, retry: { maxRetries: 2, baseDelayMs: 500, maxDelayMs: 8000 } })` or per call `{ maxRetries: 0 }`.
 
 ## Nexora Cloud (custom management systems)
 

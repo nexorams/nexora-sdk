@@ -811,6 +811,31 @@ test('Nexora SDK Comprehensive Test Suite', async (t) => {
         assert.equal(res.data[0].firstName, 'Alice');
       });
 
+      await t3.test('School: parents.create, links.list and links.revoke (Parent Portal)', async () => {
+        mockResponse = { statusCode: 201, body: { data: { id: 'par_1', parentId: 'BFA-PAR-0001', firstName: 'Bola', lastName: 'Adeyemi', activation: 'pending', created: true, links: { created: 2, skipped: [] }, invitation: { sent: true, expiresAt: '2026-10-28T00:00:00.000Z' } } } };
+        const created = await orgClient.school.parents.create({ firstName: 'Bola', lastName: 'Adeyemi', email: 'bola@example.com', phone: '+2348011112222', students: [{ studentId: 'stu_1', relationship: 'father', isPrimaryGuardian: true }, { studentId: 'stu_2' }] });
+        assert.equal(lastRequest.method, 'POST');
+        assert.equal(lastRequest.url, '/developer/v1/school/parents');
+        assert.equal(lastRequest.headers['x-organization-id'], 'org_default_school_101');
+        assert.equal((typeof lastRequest.body === 'string' ? JSON.parse(lastRequest.body) : lastRequest.body).students.length, 2);
+        assert.equal(created.parentId, 'BFA-PAR-0001');
+        assert.equal(created.invitation.sent, true);
+        assert.equal(Object.prototype.hasOwnProperty.call(created, 'tempPassword'), false, 'no password ever travels through the API');
+
+        mockResponse = { statusCode: 200, body: { data: [{ id: 'lnk_1', parentId: 'par_1', studentId: 'stu_1', relationship: 'father', status: 'ACTIVE' }], pagination: { page: 1, limit: 20, total: 1, totalPages: 1 } } };
+        const links = await orgClient.parents.links.list({ parentId: 'par_1' });
+        assert.equal(lastRequest.method, 'GET');
+        assert.equal(lastRequest.url, '/developer/v1/school/parents/links?parentId=par_1');
+        assert.equal(links.data[0].relationship, 'father');
+
+        mockResponse = { statusCode: 200, body: { data: { id: 'lnk_1', status: 'REVOKED', revokedAt: '2026-10-21T10:00:00.000Z' } } };
+        const revoked = await orgClient.parents.links.revoke({ linkId: 'lnk_1', reason: 'Custody change' });
+        assert.equal(lastRequest.url, '/developer/v1/school/parents/links/revoke');
+        assert.equal((typeof lastRequest.body === 'string' ? JSON.parse(lastRequest.body) : lastRequest.body).reason, 'Custody change');
+        assert.equal(revoked.status, 'REVOKED');
+        assert.equal(orgClient.parents, orgClient.school.parents);
+      });
+
       await t3.test('School: students.create uses default organizationId', async () => {
         mockResponse = {
           statusCode: 201,
